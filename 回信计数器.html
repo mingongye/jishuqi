@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>纯净回信计数器 | 优雅气泡提示</title>
+    <style>
+        :root {
+            --bg-primary: linear-gradient(145deg, #f6f9fc 0%, #eef2f8 100%);
+            --card-bg: rgba(255, 255, 255, 0.96);
+            --card-border: 1px solid rgba(255, 255, 255, 0.5);
+            --text-gradient: linear-gradient(115deg, #1e2b3c, #2c4c6e);
+            --count-screen-bg: #f8fafd;
+            --count-screen-border: 1px solid #eef2f8;
+            --count-number-gradient: linear-gradient(135deg, #1e2f3f, #2c5a7a);
+            --sync-panel-bg: #f9fbfe;
+            --sync-panel-border: 1px solid #eef2f9;
+            --sync-textarea-bg: white;
+            --sync-textarea-border: 1px solid #e2e8f0;
+            --tooltip-bg: #1e293b;
+            --tooltip-text: #f1f5f9;
+            --footer-text: #8b9bb0;
+            --help-icon-bg: #ffffffcc;
+            --help-icon-border: 1px solid rgba(255,255,255,0.6);
+            --shadow-base: rgba(0, 0, 0, 0.02);
+            --shadow-card: 0 25px 45px -12px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.02);
+            --sync-tag-bg: #eef2ff;
+            --sync-tag-text: #2563eb;
+            --toast-bg: rgba(0, 0, 0, 0.85);
+            --toast-text: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: linear-gradient(145deg, #1a1f28 0%, #12161d 100%);
+            --card-bg: rgba(26, 30, 40, 0.96);
+            --card-border: 1px solid rgba(40, 45, 55, 0.5);
+            --text-gradient: linear-gradient(115deg, #a0b8d0, #c0d6e8);
+            --count-screen-bg: #232935;
+            --count-screen-border: 1px solid #2d3748;
+            --count-number-gradient: linear-gradient(135deg, #a0c0e0, #b0d0f0);
+            --sync-panel-bg: #232935;
+            --sync-panel-border: 1px solid #2d3748;
+            --sync-textarea-bg: #1e2430;
+            --sync-textarea-border: 1px solid #374151;
+            --tooltip-bg: #374151;
+            --tooltip-text: #f9fafb;
+            --footer-text: #6b7280;
+            --help-icon-bg: #2d3748cc;
+            --help-icon-border: 1px solid rgba(40, 45, 55, 0.6);
+            --shadow-base: rgba(0, 0, 0, 0.1);
+            --shadow-card: 0 25px 45px -12px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.1);
+            --sync-tag-bg: #1e3a5f;
+            --sync-tag-text: #60a5fa;
+            --toast-bg: rgba(30, 30, 40, 0.95);
+            --toast-text: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'SF Pro Text', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            position: relative;
+            transition: background 0.3s ease;
+        }
+
+        .counter-card {
+            max-width: 520px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(0px);
+            border-radius: 56px;
+            box-shadow: var(--shadow-card);
+            padding: 2rem 2rem 2rem;
+            transition: transform 0.2s ease, background 0.3s ease, border 0.3s ease;
+            border: var(--card-border);
+        }
+
+        .title-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.2rem;
+        }
+
+        .title {
+            font-size: 1.8rem;
+            font-weight: 620;
+            text-align: center;
+            background: var(--text-gradient);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-toggle {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            color: #2563eb;
+        }
+        [data-theme="dark"] .theme-toggle {
+            background: rgba(40, 45, 55, 0.8);
+            border: 1px solid rgba(60, 65, 75, 0.5);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            color: #60a5fa;
+        }
+        .theme-toggle:hover {
+            transform: rotate(20deg) scale(1.08);
+            background: rgba(255, 255, 255, 1);
+        }
+        [data-theme="dark"] .theme-toggle:hover {
+            background: rgba(40, 45, 55, 1);
+        }
+
+        .count-screen {
+            background: var(--count-screen-bg);
+            border-radius: 48px;
+            padding: 1rem 1rem;
+            margin: 0.5rem 0 1rem;
+            text-align: center;
+            box-shadow: inset 0 1px 4px var(--shadow-base), 0 4px 12px var(--shadow-base);
+            border: var(--count-screen-border);
+            transition: background 0.3s ease, border 0.3s ease;
+        }
+        .count-number {
+            font-size: 5.8rem;
+            font-weight: 800;
+            background: var(--count-number-gradient);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            line-height: 1.1;
+            letter-spacing: 2px;
+            word-break: break-word;
+            font-feature-settings: "tnum";
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 18px;
+        }
+        .button-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .custom-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            top: -10px;
+            right: calc(100% + 12px);
+            background: var(--tooltip-bg);
+            color: var(--tooltip-text);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+            transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+            pointer-events: none;
+            z-index: 10;
+            transform: translateY(5px);
+        }
+        .custom-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -6px;
+            transform: translateY(-50%);
+            border-width: 6px 0 6px 6px;
+            border-style: solid;
+            border-color: transparent transparent transparent var(--tooltip-bg);
+        }
+        .tooltip-wrapper:hover .custom-tooltip {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .icon-btn {
+            background: #ffffff;
+            border: none;
+            font-size: 2rem;
+            padding: 12px 28px;
+            border-radius: 80px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            min-width: 100px;
+            backdrop-filter: blur(2px);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        [data-theme="dark"] .icon-btn {
+            background: rgba(40, 45, 55, 0.9);
+            border: 1px solid rgba(60, 65, 75, 0.6);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.15);
+        }
+        .icon-btn:active {
+            transform: scale(0.96);
+        }
+        .btn-plus {
+            background: #eef6ff;
+            box-shadow: 0 6px 12px rgba(59,130,246,0.12);
+            color: #2563eb;
+        }
+        [data-theme="dark"] .btn-plus {
+            background: #1e3a5f;
+            box-shadow: 0 6px 12px rgba(59,130,246,0.2);
+            color: #60a5fa;
+        }
+        .btn-plus:hover {
+            background: #e0edfe;
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px rgba(59,130,246,0.2);
+        }
+        [data-theme="dark"] .btn-plus:hover {
+            background: #25436e;
+        }
+        .btn-minus {
+            background: #f1f5f9;
+            color: #475569;
+        }
+        [data-theme="dark"] .btn-minus {
+            background: #27303f;
+            color: #94a3b8;
+        }
+        .btn-minus:hover {
+            background: #e6edf4;
+            transform: translateY(-2px);
+        }
+        [data-theme="dark"] .btn-minus:hover {
+            background: #303c4e;
+        }
+        .btn-undo {
+            background: #fff7ed;
+            color: #f59e0b;
+        }
+        [data-theme="dark"] .btn-undo {
+            background: #433014;
+            color: #fbbf24;
+        }
+        .btn-undo:hover {
+            background: #ffefdb;
+            transform: translateY(-2px);
+        }
+        [data-theme="dark"] .btn-undo:hover {
+            background: #523c18;
+        }
+        .btn-reset {
+            background: #fef2f2;
+            color: #ef4444;
+        }
+        [data-theme="dark"] .btn-reset {
+            background: #431e1e;
+            color: #f87171;
+        }
+        .btn-reset:hover {
+            background: #fee2e2;
+            transform: translateY(-2px);
+        }
+        [data-theme="dark"] .btn-reset:hover {
+            background: #522626;
+        }
+
+        .icon-btn:disabled {
+            opacity: 0.45;
+            transform: none;
+            cursor: not-allowed;
+            filter: grayscale(0.05);
+        }
+
+        .sync-panel {
+            background: var(--sync-panel-bg);
+            border-radius: 36px;
+            padding: 1.2rem 1.3rem;
+            margin-top: 32px;
+            border: var(--sync-panel-border);
+            transition: background 0.3s ease, border 0.3s ease;
+        }
+        .sync-header {
+            font-weight: 590;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #2c3e50;
+        }
+        [data-theme="dark"] .sync-header {
+            color: #cbd5e1;
+        }
+        .sync-tag {
+            font-size: 0.6rem;
+            background: var(--sync-tag-bg);
+            color: var(--sync-tag-text);
+            padding: 2px 8px;
+            border-radius: 40px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .sync-textarea {
+            width: 100%;
+            border-radius: 28px;
+            border: var(--sync-textarea-border);
+            background: var(--sync-textarea-bg);
+            padding: 12px 16px;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.7rem;
+            resize: vertical;
+            color: #1e2f3f;
+            transition: 0.2s, background 0.3s ease, border 0.3s ease;
+        }
+        [data-theme="dark"] .sync-textarea {
+            color: #e2e8f0;
+        }
+        .sync-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+        }
+        [data-theme="dark"] .sync-textarea:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 2px rgba(96,165,250,0.2);
+        }
+        .sync-actions {
+            display: flex;
+            gap: 14px;
+            margin-top: 14px;
+            justify-content: center;
+        }
+        .small-icon-btn {
+            background: #eef2ff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 48px;
+            font-size: 1.3rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #2c3e50;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        [data-theme="dark"] .small-icon-btn {
+            background: #2d3748;
+            color: #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+        .small-icon-btn:hover {
+            background: #e2e8f0;
+            transform: translateY(-2px);
+        }
+        [data-theme="dark"] .small-icon-btn:hover {
+            background: #374151;
+        }
+        .sync-note {
+            font-size: 0.65rem;
+            color: #5c6f87;
+            margin-top: 14px;
+            line-height: 1.4;
+            text-align: center;
+        }
+        [data-theme="dark"] .sync-note {
+            color: #94a3b8;
+        }
+
+        footer {
+            margin-top: 24px;
+            font-size: 0.68rem;
+            text-align: center;
+            color: var(--footer-text);
+            letter-spacing: 0.2px;
+            transition: color 0.3s ease;
+        }
+
+        .help-bubble {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+        }
+        .help-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--help-icon-bg);
+            backdrop-filter: blur(8px);
+            border-radius: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+            transition: 0.2s, background 0.3s ease, border 0.3s ease;
+            font-size: 1.3rem;
+            font-weight: 500;
+            color: #3b82f6;
+            border: var(--help-icon-border);
+        }
+        [data-theme="dark"] .help-icon {
+            color: #60a5fa;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+        }
+        .help-icon:hover {
+            background: white;
+            transform: scale(1.03);
+        }
+        [data-theme="dark"] .help-icon:hover {
+            background: #374151;
+        }
+        .tooltip-content {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 58px;
+            right: 0;
+            background: var(--tooltip-bg);
+            color: var(--tooltip-text);
+            padding: 12px 20px;
+            border-radius: 24px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none;
+            font-family: monospace;
+            backdrop-filter: blur(2px);
+            letter-spacing: 0.3px;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            right: 18px;
+            border-width: 8px 8px 0;
+            border-style: solid;
+            border-color: var(--tooltip-bg) transparent transparent;
+        }
+        .help-bubble:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* 新增：半透明 Toast 气泡样式 */
+        .toast-message {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--toast-bg);
+            backdrop-filter: blur(12px);
+            color: var(--toast-text);
+            padding: 12px 24px;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            z-index: 10000;
+            white-space: nowrap;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+            letter-spacing: 0.3px;
+        }
+        @media (max-width: 550px) {
+            .toast-message {
+                white-space: normal;
+                max-width: 80vw;
+                text-align: center;
+                font-size: 0.8rem;
+                padding: 10px 20px;
+            }
+            .custom-tooltip {
+                white-space: normal;
+                width: 120px;
+                text-align: center;
+                top: auto;
+                bottom: calc(100% + 8px);
+                right: 50%;
+                transform: translateX(50%) translateY(5px);
+            }
+            .custom-tooltip::after {
+                top: 100%;
+                right: 50%;
+                transform: translateX(50%);
+                border-width: 6px 6px 0 6px;
+                border-color: var(--tooltip-bg) transparent transparent transparent;
+            }
+            .tooltip-wrapper:hover .custom-tooltip {
+                transform: translateX(50%) translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="counter-card">
+    <div class="title-wrapper">
+        <div class="title">
+            📬 回信计数器
+        </div>
+        <button id="themeToggle" class="theme-toggle" title="切换深色/浅色模式">🌓</button>
+    </div>
+
+    <div class="count-screen">
+        <div class="count-number" id="countDisplay">0</div>
+    </div>
+
+    <div class="button-row">
+        <div class="tooltip-wrapper">
+            <button id="incrementBtn" class="icon-btn btn-plus" aria-label="加一">➕</button>
+            <div class="custom-tooltip">加一 (空格键)</div>
+        </div>
+        <div class="tooltip-wrapper">
+            <button id="decrementBtn" class="icon-btn btn-minus" aria-label="减一">➖</button>
+            <div class="custom-tooltip">减一 (减号/Backspace)</div>
+        </div>
+    </div>
+    <div class="button-row">
+        <div class="tooltip-wrapper">
+            <button id="undoBtn" class="icon-btn btn-undo" aria-label="撤回">↩️</button>
+            <div class="custom-tooltip">撤回上一次操作 (Ctrl+Z)</div>
+        </div>
+        <div class="tooltip-wrapper">
+            <button id="resetBtn" class="icon-btn btn-reset" aria-label="清零">🗑️</button>
+            <div class="custom-tooltip">清零 (不可直接恢复，但可用撤回)</div>
+        </div>
+    </div>
+
+    <div class="sync-panel">
+        <div class="sync-header">
+            🔐 加密同步码
+            <span class="sync-tag">当前计数加密</span>
+        </div>
+        <textarea id="syncCodeTextarea" class="sync-textarea" rows="2" placeholder="在此粘贴他人的同步码，或点击「刷新同步码」生成当前计数的加密码..."></textarea>
+        <div class="sync-actions">
+            <div class="tooltip-wrapper">
+                <button id="copySyncBtn" class="small-icon-btn" aria-label="复制同步码">📋</button>
+                <div class="custom-tooltip">复制加密同步码到剪贴板</div>
+            </div>
+            <div class="tooltip-wrapper">
+                <button id="importSyncBtn" class="small-icon-btn" aria-label="导入并覆盖">📥</button>
+                <div class="custom-tooltip">导入加密同步码并覆盖当前计数</div>
+            </div>
+            <div class="tooltip-wrapper">
+                <button id="refreshSyncBtn" class="small-icon-btn" aria-label="刷新同步码">🔄</button>
+                <div class="custom-tooltip">刷新生成新的加密同步码</div>
+            </div>
+        </div>
+        <div class="sync-note">
+            ✨ 同步码包含当前计数值，导入后将覆盖本地计数（可用撤回恢复）。<br>
+            💡 提示：文本框可编辑，您可以直接粘贴他人分享的同步码。
+        </div>
+    </div>
+    <footer>数据自动保存 · 支持撤回 · 空格+1 / 减号/Backspace -1 / Ctrl+Z 撤回</footer>
+</div>
+
+<div class="help-bubble">
+    <div class="help-icon">⌨️</div>
+    <div class="tooltip-content">
+        ⚡ 空格 +1 &nbsp;&nbsp; 🔽 减号 / Backspace -1<br>
+        ⌨️ Ctrl+Z 撤回
+    </div>
+</div>
+
+<script>
+    const STORAGE_KEY = "cleanCounter_v2";
+    const THEME_STORAGE_KEY = "cleanCounter_theme";
+    
+    let currentCount = 0;
+    let historyStack = [];
+    
+    const countDisplay = document.getElementById("countDisplay");
+    const incrementBtn = document.getElementById("incrementBtn");
+    const decrementBtn = document.getElementById("decrementBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const copySyncBtn = document.getElementById("copySyncBtn");
+    const importSyncBtn = document.getElementById("importSyncBtn");
+    const refreshSyncBtn = document.getElementById("refreshSyncBtn");
+    const syncTextarea = document.getElementById("syncCodeTextarea");
+    const themeToggle = document.getElementById("themeToggle");
+    
+    // ---------- 半透明 Toast 提示 ----------
+    let toastTimeout = null;
+    function showToast(message, duration = 2000) {
+        // 移除已有的 toast
+        const existingToast = document.querySelector('.toast-message');
+        if (existingToast) {
+            existingToast.remove();
+            if (toastTimeout) clearTimeout(toastTimeout);
+        }
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        toastTimeout = setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) toast.remove();
+            }, 300);
+        }, duration);
+    }
+    
+    // ---------- 主题 ----------
+    function initTheme() {
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "light";
+        document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+    function toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+        const newTheme = currentTheme === "light" ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", newTheme);
+        localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+    }
+    
+    // ---------- 计数核心 ----------
+    function updateUI() {
+        countDisplay.innerText = currentCount;
+        undoBtn.disabled = (historyStack.length === 0);
+        saveToLocal();
+        refreshSyncCode();
+    }
+    
+    function pushHistory(oldValue) {
+        historyStack.push(oldValue);
+        if (historyStack.length > 60) historyStack.shift();
+    }
+    
+    function changeCount(delta) {
+        let oldVal = currentCount;
+        let newVal = oldVal + delta;
+        if (newVal < 0) newVal = 0;
+        if (newVal === oldVal) return false;
+        pushHistory(oldVal);
+        currentCount = newVal;
+        updateUI();
+        return true;
+    }
+    
+    function undo() {
+        if (historyStack.length === 0) return false;
+        const prev = historyStack.pop();
+        currentCount = prev;
+        updateUI();
+        return true;
+    }
+    
+    function resetToZero() {
+        if (currentCount === 0) return;
+        pushHistory(currentCount);
+        currentCount = 0;
+        updateUI();
+    }
+    
+    function saveToLocal() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: currentCount }));
+    }
+    
+    function loadFromLocal() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try {
+                const data = JSON.parse(stored);
+                if (typeof data.count === 'number' && !isNaN(data.count) && data.count >= 0) {
+                    currentCount = data.count;
+                }
+            } catch(e) { console.warn(e); }
+        }
+        if (currentCount < 0) currentCount = 0;
+        historyStack = [];
+        updateUI();
+    }
+    
+    // ---------- 加密同步 ----------
+    function encryptData(obj) {
+        try {
+            const jsonStr = JSON.stringify(obj);
+            const utf8Bytes = unescape(encodeURIComponent(jsonStr));
+            return btoa(utf8Bytes);
+        } catch(e) {
+            console.error("加密错误", e);
+            return "";
+        }
+    }
+    
+    function decryptData(encrypted) {
+        try {
+            const utf8Bytes = atob(encrypted);
+            const jsonStr = decodeURIComponent(escape(utf8Bytes));
+            return JSON.parse(jsonStr);
+        } catch(e) {
+            console.error("解密错误", e);
+            return null;
+        }
+    }
+    
+    function refreshSyncCode() {
+        const payload = { count: currentCount, v: 1 };
+        syncTextarea.value = encryptData(payload);
+    }
+    
+    async function copySyncCode() {
+        if (!syncTextarea.value) {
+            showToast("❌ 没有同步码可复制", 1500);
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(syncTextarea.value);
+            showToast("✅ 加密同步码已复制", 1500);
+        } catch(err) {
+            syncTextarea.select();
+            document.execCommand("copy");
+            showToast("✅ 已复制", 1500);
+        }
+    }
+    
+    function importSyncCode() {
+        const code = syncTextarea.value.trim();
+        if (!code) {
+            showToast("❌ 请先粘贴加密同步码到文本框", 1800);
+            return;
+        }
+        const imported = decryptData(code);
+        if (!imported || typeof imported.count !== 'number' || isNaN(imported.count)) {
+            showToast("❌ 同步码无效或损坏，请检查复制完整性", 2000);
+            return;
+        }
+        let newCount = imported.count;
+        if (newCount < 0) newCount = 0;
+        if (newCount === currentCount) {
+            showToast("ℹ️ 导入值与当前相同，无需更新", 1500);
+            return;
+        }
+        pushHistory(currentCount);
+        currentCount = newCount;
+        updateUI();
+        showToast(`✅ 同步完成，当前计数 = ${currentCount}`, 2000);
+    }
+    
+    // ---------- 快捷键 ----------
+    function bindShortcuts() {
+        window.addEventListener("keydown", (e) => {
+            const tag = e.target.tagName.toLowerCase();
+            if (tag === 'input' || tag === 'textarea') return;
+            
+            if (e.code === 'Space' || e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                changeCount(1);
+            }
+            if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === 'Backspace') {
+                e.preventDefault();
+                changeCount(-1);
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+        });
+    }
+    
+    function bindEvents() {
+        incrementBtn.addEventListener("click", () => changeCount(1));
+        decrementBtn.addEventListener("click", () => changeCount(-1));
+        undoBtn.addEventListener("click", () => undo());
+        resetBtn.addEventListener("click", () => resetToZero());
+        copySyncBtn.addEventListener("click", copySyncCode);
+        importSyncBtn.addEventListener("click", importSyncCode);
+        refreshSyncBtn.addEventListener("click", () => refreshSyncCode());
+        themeToggle.addEventListener("click", toggleTheme);
+    }
+    
+    function init() {
+        loadFromLocal();
+        initTheme();
+        bindEvents();
+        bindShortcuts();
+        refreshSyncCode();
+    }
+    
+    init();
+</script>
+</body>
+</html>
