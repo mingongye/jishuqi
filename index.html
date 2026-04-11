@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>纯净回信计数器 | 优雅气泡提示</title>
+    <title>实时共享计数器 | 多人同步 · 撤回同步</title>
+    <!-- Firebase SDK 引入 (实时数据库) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
         :root {
             --bg-primary: linear-gradient(145deg, #f6f9fc 0%, #eef2f8 100%);
@@ -479,7 +482,6 @@
             opacity: 1;
         }
 
-        /* 新增：半透明 Toast 气泡样式 */
         .toast-message {
             position: fixed;
             top: 20%;
@@ -534,7 +536,7 @@
 <div class="counter-card">
     <div class="title-wrapper">
         <div class="title">
-            📬 回信计数器
+            📬 实时共享计数器
         </div>
         <button id="themeToggle" class="theme-toggle" title="切换深色/浅色模式">🌓</button>
     </div>
@@ -556,17 +558,17 @@
     <div class="button-row">
         <div class="tooltip-wrapper">
             <button id="undoBtn" class="icon-btn btn-undo" aria-label="撤回">↩️</button>
-            <div class="custom-tooltip">撤回上一次操作 (Ctrl+Z)</div>
+            <div class="custom-tooltip">撤回上一次全局操作 (Ctrl+Z)</div>
         </div>
         <div class="tooltip-wrapper">
             <button id="resetBtn" class="icon-btn btn-reset" aria-label="清零">🗑️</button>
-            <div class="custom-tooltip">清零 (不可直接恢复，但可用撤回)</div>
+            <div class="custom-tooltip">清零 (全局操作，可撤回)</div>
         </div>
     </div>
 
     <div class="sync-panel">
         <div class="sync-header">
-            🔐 加密同步码
+            🔐 加密同步码 (快照分享)
             <span class="sync-tag">当前计数加密</span>
         </div>
         <textarea id="syncCodeTextarea" class="sync-textarea" rows="2" placeholder="在此粘贴他人的同步码，或点击「刷新同步码」生成当前计数的加密码..."></textarea>
@@ -577,7 +579,7 @@
             </div>
             <div class="tooltip-wrapper">
                 <button id="importSyncBtn" class="small-icon-btn" aria-label="导入并覆盖">📥</button>
-                <div class="custom-tooltip">导入加密同步码并覆盖当前计数</div>
+                <div class="custom-tooltip">导入加密同步码并覆盖全局计数</div>
             </div>
             <div class="tooltip-wrapper">
                 <button id="refreshSyncBtn" class="small-icon-btn" aria-label="刷新同步码">🔄</button>
@@ -585,28 +587,59 @@
             </div>
         </div>
         <div class="sync-note">
-            ✨ 同步码包含当前计数值，导入后将覆盖本地计数（可用撤回恢复）。<br>
-            💡 提示：文本框可编辑，您可以直接粘贴他人分享的同步码。
+            ✨ 多人实时同步：任何人的操作都会自动同步给所有在线成员。<br>
+            💡 同步码为快照分享，导入后会覆盖当前计数（可撤回）。
         </div>
     </div>
-    <footer>数据自动保存 · 支持撤回 · 空格+1 / 减号/Backspace -1 / Ctrl+Z 撤回</footer>
+    <footer>🌍 实时云端同步 · 支持撤回全局操作 · 空格+1 / 减号/Backspace -1 / Ctrl+Z 撤回</footer>
 </div>
 
 <div class="help-bubble">
     <div class="help-icon">⌨️</div>
     <div class="tooltip-content">
         ⚡ 空格 +1 &nbsp;&nbsp; 🔽 减号 / Backspace -1<br>
-        ⌨️ Ctrl+Z 撤回
+        ⌨️ Ctrl+Z 撤回 (全局)
     </div>
 </div>
 
 <script>
-    const STORAGE_KEY = "cleanCounter_v2";
-    const THEME_STORAGE_KEY = "cleanCounter_theme";
-    
-    let currentCount = 0;
-    let historyStack = [];
-    
+    // ======================= 🔥 Firebase 配置区 =======================
+    // 请前往 https://console.firebase.google.com/ 创建项目，启用 Realtime Database，
+    // 将下面的配置替换为您的项目配置。测试模式下数据库规则请设置为:
+    // {
+    //   "rules": {
+    //     ".read": true,
+    //     ".write": true
+    //   }
+    // }
+    const firebaseConfig = {
+        apiKey: "AIzaSyCMxOogSozLC1Ro73nCUIrmgtPxpsZE1vY",
+        authDomain: "jishuqi-5dd7a.firebaseapp.com",
+        databaseURL: "https://jishuqi-5dd7a-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "jishuqi-5dd7a",
+        storageBucket: "jishuqi-5dd7a.firebasestorage.app",
+        messagingSenderId: "259444951100",
+        appId: "1:259444951100:web:68a5218b3d2153f02c9b39"
+    };
+    // =================================================================
+
+    // 初始化 Firebase (检查配置是否有效)
+    let db;
+    let isFirebaseReady = false;
+    try {
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "请替换为您的API_KEY") {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            isFirebaseReady = true;
+        } else {
+            console.warn("Firebase 未配置，请在代码中填写正确的 firebaseConfig");
+        }
+    } catch(e) {
+        console.error("Firebase 初始化错误", e);
+        isFirebaseReady = false;
+    }
+
+    // DOM 元素
     const countDisplay = document.getElementById("countDisplay");
     const incrementBtn = document.getElementById("incrementBtn");
     const decrementBtn = document.getElementById("decrementBtn");
@@ -617,11 +650,15 @@
     const refreshSyncBtn = document.getElementById("refreshSyncBtn");
     const syncTextarea = document.getElementById("syncCodeTextarea");
     const themeToggle = document.getElementById("themeToggle");
-    
-    // ---------- 半透明 Toast 提示 ----------
+
+    // 全局状态 (实时监听更新)
+    let currentCount = 0;
+    let historyArray = [];     // 存储云端历史 (数字数组)
+    let isListening = false;
+
+    // Toast 提示
     let toastTimeout = null;
     function showToast(message, duration = 2000) {
-        // 移除已有的 toast
         const existingToast = document.querySelector('.toast-message');
         if (existingToast) {
             existingToast.remove();
@@ -638,8 +675,9 @@
             }, 300);
         }, duration);
     }
-    
-    // ---------- 主题 ----------
+
+    // 主题逻辑
+    const THEME_STORAGE_KEY = "cleanCounter_theme";
     function initTheme() {
         const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "light";
         document.documentElement.setAttribute("data-theme", savedTheme);
@@ -650,93 +688,36 @@
         document.documentElement.setAttribute("data-theme", newTheme);
         localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     }
-    
-    // ---------- 计数核心 ----------
-    function updateUI() {
-        countDisplay.innerText = currentCount;
-        undoBtn.disabled = (historyStack.length === 0);
-        saveToLocal();
-        refreshSyncCode();
-    }
-    
-    function pushHistory(oldValue) {
-        historyStack.push(oldValue);
-        if (historyStack.length > 60) historyStack.shift();
-    }
-    
-    function changeCount(delta) {
-        let oldVal = currentCount;
-        let newVal = oldVal + delta;
-        if (newVal < 0) newVal = 0;
-        if (newVal === oldVal) return false;
-        pushHistory(oldVal);
-        currentCount = newVal;
-        updateUI();
-        return true;
-    }
-    
-    function undo() {
-        if (historyStack.length === 0) return false;
-        const prev = historyStack.pop();
-        currentCount = prev;
-        updateUI();
-        return true;
-    }
-    
-    function resetToZero() {
-        if (currentCount === 0) return;
-        pushHistory(currentCount);
-        currentCount = 0;
-        updateUI();
-    }
-    
-    function saveToLocal() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: currentCount }));
-    }
-    
-    function loadFromLocal() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                const data = JSON.parse(stored);
-                if (typeof data.count === 'number' && !isNaN(data.count) && data.count >= 0) {
-                    currentCount = data.count;
-                }
-            } catch(e) { console.warn(e); }
-        }
-        if (currentCount < 0) currentCount = 0;
-        historyStack = [];
-        updateUI();
-    }
-    
-    // ---------- 加密同步 ----------
+    themeToggle.addEventListener("click", toggleTheme);
+    initTheme();
+
+    // ---------- 辅助：加密/解密 (与原逻辑一致) ----------
     function encryptData(obj) {
         try {
             const jsonStr = JSON.stringify(obj);
             const utf8Bytes = unescape(encodeURIComponent(jsonStr));
             return btoa(utf8Bytes);
         } catch(e) {
-            console.error("加密错误", e);
             return "";
         }
     }
-    
     function decryptData(encrypted) {
         try {
             const utf8Bytes = atob(encrypted);
             const jsonStr = decodeURIComponent(escape(utf8Bytes));
             return JSON.parse(jsonStr);
         } catch(e) {
-            console.error("解密错误", e);
             return null;
         }
     }
-    
+
+    // 刷新同步码 (基于当前计数)
     function refreshSyncCode() {
         const payload = { count: currentCount, v: 1 };
         syncTextarea.value = encryptData(payload);
     }
-    
+
+    // 复制同步码
     async function copySyncCode() {
         if (!syncTextarea.value) {
             showToast("❌ 没有同步码可复制", 1500);
@@ -751,8 +732,13 @@
             showToast("✅ 已复制", 1500);
         }
     }
-    
+
+    // 导入同步码: 解析后更新云端数据 (原子操作)
     function importSyncCode() {
+        if (!isFirebaseReady) {
+            showToast("⚠️ 未配置Firebase，无法导入", 2000);
+            return;
+        }
         const code = syncTextarea.value.trim();
         if (!code) {
             showToast("❌ 请先粘贴加密同步码到文本框", 1800);
@@ -760,34 +746,150 @@
         }
         const imported = decryptData(code);
         if (!imported || typeof imported.count !== 'number' || isNaN(imported.count)) {
-            showToast("❌ 同步码无效或损坏，请检查复制完整性", 2000);
+            showToast("❌ 同步码无效或损坏，请检查完整性", 2000);
             return;
         }
-        let newCount = imported.count;
-        if (newCount < 0) newCount = 0;
-        if (newCount === currentCount) {
-            showToast("ℹ️ 导入值与当前相同，无需更新", 1500);
-            return;
-        }
-        pushHistory(currentCount);
-        currentCount = newCount;
-        updateUI();
-        showToast(`✅ 同步完成，当前计数 = ${currentCount}`, 2000);
+        let targetCount = imported.count;
+        if (targetCount < 0) targetCount = 0;
+        const countRef = db.ref('counter');
+        // 使用transaction保证原子性: 将当前计数推入历史，然后设置为目标值
+        countRef.transaction(currentData => {
+            if (currentData === null) {
+                return { count: targetCount, history: [] };
+            }
+            const oldCount = currentData.count;
+            let newHistory = currentData.history ? [...currentData.history] : [];
+            // 如果当前值与目标值相同则不操作
+            if (oldCount === targetCount) return;
+            newHistory.push(oldCount);
+            if (newHistory.length > 60) newHistory.shift();
+            return { count: targetCount, history: newHistory };
+        }, (error, committed, snapshot) => {
+            if (error) {
+                showToast("导入失败: " + error.message, 2000);
+            } else if (committed) {
+                showToast(`✅ 同步完成，计数更新为 ${targetCount}`, 2000);
+            } else {
+                showToast("导入未生效 (无变化)", 1500);
+            }
+        });
     }
-    
-    // ---------- 快捷键 ----------
+
+    // ---------- 云端核心操作 (原子 transaction) ----------
+    function performUpdate(updateLogic) {
+        if (!isFirebaseReady) {
+            showToast("⚠️ Firebase未配置，无法同步", 2000);
+            return Promise.reject("Firebase not ready");
+        }
+        const countRef = db.ref('counter');
+        return countRef.transaction(currentData => {
+            if (currentData === null) {
+                // 初始化
+                const init = { count: 0, history: [] };
+                return updateLogic(init);
+            }
+            return updateLogic(currentData);
+        }).then(result => {
+            if (result.committed) {
+                // 成功，监听会自动更新UI
+                return true;
+            } else {
+                showToast("操作冲突，请重试", 1500);
+                return false;
+            }
+        }).catch(err => {
+            showToast("操作失败: " + err.message, 2000);
+            return false;
+        });
+    }
+
+    // 增加 +1
+    function increment() {
+        performUpdate((data) => {
+            let newCount = data.count + 1;
+            let newHistory = data.history ? [...data.history] : [];
+            newHistory.push(data.count);
+            if (newHistory.length > 60) newHistory.shift();
+            return { count: newCount, history: newHistory };
+        });
+    }
+    // 减少 -1 (不能小于0)
+    function decrement() {
+        performUpdate((data) => {
+            let oldVal = data.count;
+            if (oldVal <= 0) return; // 无变化
+            let newCount = oldVal - 1;
+            let newHistory = data.history ? [...data.history] : [];
+            newHistory.push(oldVal);
+            if (newHistory.length > 60) newHistory.shift();
+            return { count: newCount, history: newHistory };
+        });
+    }
+    // 重置为0
+    function resetToZero() {
+        performUpdate((data) => {
+            if (data.count === 0) return;
+            let newHistory = data.history ? [...data.history] : [];
+            newHistory.push(data.count);
+            if (newHistory.length > 60) newHistory.shift();
+            return { count: 0, history: newHistory };
+        });
+    }
+    // 撤回: 弹出历史最后一个值作为当前计数
+    function undo() {
+        performUpdate((data) => {
+            const history = data.history || [];
+            if (history.length === 0) return; // 无历史
+            const lastVal = history[history.length - 1];
+            const newHistory = history.slice(0, -1);
+            return { count: lastVal, history: newHistory };
+        });
+    }
+
+    // ---------- 实时监听 Firebase 数据变化 ----------
+    function startRealtimeSync() {
+        if (!isFirebaseReady) {
+            showToast("⚠️ 未配置Firebase，实时共享不可用，页面将以本地模式运行（仅演示）", 3000);
+            // 降级: 禁用所有操作按钮并显示提示
+            const btns = [incrementBtn, decrementBtn, undoBtn, resetBtn, importSyncBtn];
+            btns.forEach(btn => { if(btn) btn.disabled = true; });
+            return;
+        }
+        const counterRef = db.ref('counter');
+        counterRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && typeof data.count === 'number') {
+                currentCount = data.count;
+                historyArray = Array.isArray(data.history) ? data.history : [];
+            } else {
+                // 首次无数据，初始化
+                currentCount = 0;
+                historyArray = [];
+                counterRef.set({ count: 0, history: [] }).catch(e => console.warn(e));
+            }
+            // 更新UI
+            countDisplay.innerText = currentCount;
+            undoBtn.disabled = (historyArray.length === 0);
+            // 刷新同步码区域显示
+            refreshSyncCode();
+        }, (error) => {
+            console.error("监听失败:", error);
+            showToast("实时连接出错，请刷新页面", 2000);
+        });
+    }
+
+    // 快捷键绑定 (仅当 Firebase 就绪且不干扰输入框)
     function bindShortcuts() {
         window.addEventListener("keydown", (e) => {
             const tag = e.target.tagName.toLowerCase();
             if (tag === 'input' || tag === 'textarea') return;
-            
             if (e.code === 'Space' || e.key === ' ' || e.key === 'Space') {
                 e.preventDefault();
-                changeCount(1);
+                increment();
             }
             if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === 'Backspace') {
                 e.preventDefault();
-                changeCount(-1);
+                decrement();
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
@@ -795,26 +897,33 @@
             }
         });
     }
-    
+
+    // 绑定按钮事件
     function bindEvents() {
-        incrementBtn.addEventListener("click", () => changeCount(1));
-        decrementBtn.addEventListener("click", () => changeCount(-1));
+        incrementBtn.addEventListener("click", () => increment());
+        decrementBtn.addEventListener("click", () => decrement());
         undoBtn.addEventListener("click", () => undo());
         resetBtn.addEventListener("click", () => resetToZero());
         copySyncBtn.addEventListener("click", copySyncCode);
         importSyncBtn.addEventListener("click", importSyncCode);
         refreshSyncBtn.addEventListener("click", () => refreshSyncCode());
-        themeToggle.addEventListener("click", toggleTheme);
     }
-    
+
+    // 初始化应用
     function init() {
-        loadFromLocal();
-        initTheme();
         bindEvents();
         bindShortcuts();
+        startRealtimeSync();
+        // 初始刷新一次同步码
         refreshSyncCode();
+        // 如果 Firebase 未配置，展示友好的错误提示
+        if (!isFirebaseReady) {
+            showToast("请配置Firebase以启用多人实时同步", 4000);
+        } else {
+            showToast("✅ 实时共享已连接，多人操作自动同步", 2500);
+        }
     }
-    
+
     init();
 </script>
 </body>
